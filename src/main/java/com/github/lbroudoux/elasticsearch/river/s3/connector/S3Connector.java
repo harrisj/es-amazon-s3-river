@@ -90,7 +90,7 @@ public class S3Connector{
       }
       
       ListObjectsRequest request = new ListObjectsRequest().withBucketName(bucketName)
-            .withPrefix(pathPrefix);
+            .withPrefix(pathPrefix).withEncodingType("url");
       ObjectListing listing = s3Client.listObjects(request);
       logger.debug("Listing: {}", listing);
       while (!listing.getObjectSummaries().isEmpty() || listing.isTruncated()){
@@ -125,11 +125,20 @@ public class S3Connector{
     * @return This file bytes or null if something goes wrong.
     */
    public byte[] getContent(S3ObjectSummary summary){
+      String key;
+
       if (logger.isDebugEnabled()){
          logger.debug("Downloading file content from {}", summary.getKey());
       }
       // Retrieve object corresponding to key into bucket.
-      S3Object object = s3Client.getObject(bucketName, summary.getKey());
+      try {
+        key = java.net.URLDecoder.decode(summary.getKey(), "UTF-8");
+      } catch (java.io.UnsupportedEncodingException e) {
+        e.printStackTrace();
+        return null;
+      }
+
+      S3Object object = s3Client.getObject(bucketName, key);
       
       InputStream is = null;
       ByteArrayOutputStream bos = null;
