@@ -90,7 +90,7 @@ public class S3Connector{
       }
       
       ListObjectsRequest request = new ListObjectsRequest().withBucketName(bucketName)
-            .withPrefix(pathPrefix);
+            .withPrefix(pathPrefix).withEncodingType("url");
       ObjectListing listing = s3Client.listObjects(request);
       logger.debug("Listing: {}", listing);
       while (!listing.getObjectSummaries().isEmpty() || listing.isTruncated()){
