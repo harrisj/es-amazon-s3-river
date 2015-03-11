@@ -333,10 +333,10 @@ public class S3River extends AbstractRiverComponent implements River{
                }
             } catch (Exception e){
                logger.warn("Error while indexing content from {}", feedDefinition.getBucket());
-               if (logger.isDebugEnabled()){
-                  logger.debug("Exception for folder {} is {}", feedDefinition.getBucket(), e);
+               // if (logger.isDebugEnabled()){
+                  logger.warn("Exception for folder {} is {}", feedDefinition.getBucket(), e);
                   e.printStackTrace();
-               }
+               // 
             }
             
             try {
@@ -495,7 +495,11 @@ public class S3River extends AbstractRiverComponent implements River{
                   Map<String, Object> fileMetadataMap = new HashMap<String, Object>();
                   String[] metadata_keys = fileMetadata.names();
                   for (String k : metadata_keys) {
-                     fileMetadataMap.put(k,fileMetadata.get(k));
+                     if (fileMetadata.isMultiValued(k)) {
+                        fileMetadataMap.put(k,fileMetadata.getValues(k));
+                     } else {
+                        fileMetadataMap.put(k,fileMetadata.get(k));
+                     }
                   }
 
                   esIndex(indexName, typeName, fileId,
@@ -512,6 +516,9 @@ public class S3River extends AbstractRiverComponent implements River{
                                  .field("file", parsedContent)
                               .endObject()
                            .endObject());
+
+                  logger.debug("S3 River: indexed '{}'", summary.getKey());
+
                   return fileId;
                }
             }
