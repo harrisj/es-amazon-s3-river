@@ -467,7 +467,7 @@ public class S3River extends AbstractRiverComponent implements River{
       /** Index an Amazon S3 file by retrieving its content and building the suitable Json content. */
       private String indexFile(S3ObjectSummary summary){
          if (logger.isDebugEnabled()){
-            logger.debug("Trying to index '{}'", summary.getKey());
+            logger.debug("Trying to index '{}'", s3.getDecodedKey(summary));
          }
          
          try{
@@ -523,14 +523,14 @@ public class S3River extends AbstractRiverComponent implements River{
                }
             }
          } catch (Exception e) {
-            logger.warn("Can not index " + summary.getKey() + " : " + e.getMessage());
+            logger.warn("Can not index " + s3.getDecodedKey(summary) + " : " + e.getMessage());
          }
          return null;
       }
       
       /** Build a unique id from S3 unique summary key. */
       private String buildIndexIdFromS3Key(String key){
-         return key.replace('/', '-');
+         return key.replace('/', '-').replace(' ', '+');
       }
       
       /** Update river last changes id value.*/

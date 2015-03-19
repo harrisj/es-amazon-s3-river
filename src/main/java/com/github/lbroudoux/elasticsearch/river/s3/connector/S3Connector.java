@@ -90,7 +90,7 @@ public class S3Connector{
       }
       
       ListObjectsRequest request = new ListObjectsRequest().withBucketName(bucketName)
-            .withPrefix(pathPrefix).withEncodingType("url");
+            .withPrefix(pathPrefix);
       ObjectListing listing = s3Client.listObjects(request);
       logger.debug("Listing: {}", listing);
       while (!listing.getObjectSummaries().isEmpty() || listing.isTruncated()){
@@ -119,23 +119,26 @@ public class S3Connector{
 	   return Collections.<String, Object>unmodifiableMap(s3Client.getObjectMetadata(bucketName, key).getUserMetadata());
    }
 
+   public String getDecodedKey(S3ObjectSummary summary) {
+      try {
+        return java.net.URLDecoder.decode(summary.getKey(), "UTF-8");
+      } catch (java.io.UnsupportedEncodingException e) {
+        e.printStackTrace();
+        return null;
+      }
+   }
+
    /**
     * Download Amazon S3 file as byte array.
     * @param summary The summary of the S3 Object to download
     * @return This file bytes or null if something goes wrong.
     */
-   public byte[] getContent(S3ObjectSummary summary){
-      String key;
+   public byte[] getContent(S3ObjectSummary summary) {
+      String key = getDecodedKey(summary);
 
-      if (logger.isDebugEnabled()){
-         logger.debug("Downloading file content from {}", summary.getKey());
-      }
       // Retrieve object corresponding to key into bucket.
-      try {
-        key = java.net.URLDecoder.decode(summary.getKey(), "UTF-8");
-      } catch (java.io.UnsupportedEncodingException e) {
-        e.printStackTrace();
-        return null;
+      if (logger.isDebugEnabled()){
+         logger.debug("Downloading file content from {}", key);
       }
 
       S3Object object = s3Client.getObject(bucketName, key);
