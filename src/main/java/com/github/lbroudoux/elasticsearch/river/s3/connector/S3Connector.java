@@ -90,7 +90,7 @@ public class S3Connector{
       }
       
       ListObjectsRequest request = new ListObjectsRequest().withBucketName(bucketName)
-            .withPrefix(pathPrefix);
+            .withPrefix(pathPrefix).withEncodingType("url");
       ObjectListing listing = s3Client.listObjects(request);
       logger.debug("Listing: {}", listing);
       while (!listing.getObjectSummaries().isEmpty() || listing.isTruncated()){
@@ -120,6 +120,8 @@ public class S3Connector{
    }
 
    public String getDecodedKey(S3ObjectSummary summary) {
+      // return summary.getKey();  // If you deactivate using withEncodingType above
+
       try {
         return java.net.URLDecoder.decode(summary.getKey(), "UTF-8");
       } catch (java.io.UnsupportedEncodingException e) {
