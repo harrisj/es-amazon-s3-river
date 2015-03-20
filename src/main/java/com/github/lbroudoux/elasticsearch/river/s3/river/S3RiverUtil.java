@@ -57,6 +57,7 @@ public class S3RiverUtil{
                   .startObject("title").field("type", "string").field("store", "yes").endObject()
                   .startObject("file").field("type", "string")
                      .field("term_vector", "with_positions_offsets")
+                     .field("index_options", "offsets")
                      .field("store", "yes")
                   .endObject()
                .endObject()
