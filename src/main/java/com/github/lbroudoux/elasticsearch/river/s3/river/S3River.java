@@ -86,6 +86,9 @@ public class S3River extends AbstractRiverComponent implements River{
       super(riverName, settings);
       this.client = client;
       
+      // setting this via ES_JAVA_OPTS didn't work, so YOLO. -JBM 3/23/15
+      System.setProperty("jdk.xml.entityExpansionLimit", "0");
+
       // Deal with connector settings.
       if (settings.settings().containsKey("amazon-s3")){
          Map<String, Object> feed = (Map<String, Object>)settings.settings().get("amazon-s3");
