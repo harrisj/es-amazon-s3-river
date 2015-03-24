@@ -338,7 +338,8 @@ public class S3River extends AbstractRiverComponent implements River{
                logger.warn("Error while indexing content from {}", feedDefinition.getBucket());
                // if (logger.isDebugEnabled()){
                   logger.warn("Exception for folder {} is {}", feedDefinition.getBucket(), e);
-                  e.printStackTrace();
+                  logger.warn("Stack trace: ", e);
+                  //e.printStackTrace();
                // 
             }
             
