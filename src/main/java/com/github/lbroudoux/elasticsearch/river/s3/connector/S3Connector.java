@@ -40,6 +40,7 @@ import com.github.lbroudoux.elasticsearch.river.s3.river.S3RiverFeedDefinition;
  * @author laurent
  */
 public class S3Connector{
+  final int MAX_NEW_RESULTS_TO_INDEX_ON_RUN = 10000;
 
    private static final ESLogger logger = Loggers.getLogger(S3Connector.class);
    
@@ -76,7 +77,7 @@ public class S3Connector{
     * @param lastScanTime Last modification date filter
     * @return Summaries of picked objects.
     */
-   public S3ObjectSummaries getObjectSummaries(Long lastScanTime){
+   public S3ObjectSummaries getObjectSummaries(Long lastScanTime, boolean deleteOnS3){
       if (logger.isDebugEnabled()){
          logger.debug("Getting buckets changes since {}", lastScanTime);
       }
@@ -93,6 +94,9 @@ public class S3Connector{
             .withPrefix(pathPrefix).withEncodingType("url");
       ObjectListing listing = s3Client.listObjects(request);
       logger.debug("Listing: {}", listing);
+      int keyCount = 0;
+      boolean resultLimit = false;
+
       while (!listing.getObjectSummaries().isEmpty() || listing.isTruncated()){
          List<S3ObjectSummary> summaries = listing.getObjectSummaries();
          if (logger.isDebugEnabled()){
@@ -102,16 +106,34 @@ public class S3Connector{
             if (logger.isDebugEnabled()){
                logger.debug("Getting {} last modified on {}", summary.getKey(), summary.getLastModified());
             }
-            keys.add(summary.getKey());
+
+            keyCount += 1;
+            if (deleteOnS3) {
+              keys.add(summary.getKey());
+            }
+
             if (summary.getLastModified().getTime() > lastScanTime){
-               logger.debug("  Picked !");
-               result.add(summary);
+              if (result.size() < MAX_NEW_RESULTS_TO_INDEX_ON_RUN) {
+                 logger.debug("  Picked !");
+                 result.add(summary);
+              } else if (!resultLimit && result.size() == MAX_NEW_RESULTS_TO_INDEX_ON_RUN) {
+                logger.info("Only indexing up to 10,000 new objects on this indexing run");
+                resultLimit = true;
+
+                if (!deleteOnS3) {
+                  // No need to keep iterating through all keys if we aren't doing deleteOnS3 
+                  break;
+                }
+              }
             }
          }
+
          listing = s3Client.listNextBatchOfObjects(listing);
       }
       
       // Wrap results and latest scan time.
+      logger.info("S3 scan complete: {} files ({} new)", keyCount, result.size());
+
       return new S3ObjectSummaries(lastScanTimeToReturn, result, keys);
    }
    

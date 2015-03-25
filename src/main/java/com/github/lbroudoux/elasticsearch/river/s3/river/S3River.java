@@ -100,6 +100,7 @@ public class S3River extends AbstractRiverComponent implements River{
          String downloadHost = XContentMapValues.nodeStringValue(feed.get("download_host"), null);
          int updateRate = XContentMapValues.nodeIntegerValue(feed.get("update_rate"), 15 * 60 * 1000);
          boolean jsonSupport = XContentMapValues.nodeBooleanValue(feed.get("json_support"), false);
+         boolean deleteOnS3 = XContentMapValues.nodeBooleanValue(feed.get("deleteS3"), true);
          
          String[] includes = S3RiverUtil.buildArrayFromSettings(settings.settings(), "amazon-s3.includes");
          String[] excludes = S3RiverUtil.buildArrayFromSettings(settings.settings(), "amazon-s3.excludes");
@@ -109,7 +110,7 @@ public class S3River extends AbstractRiverComponent implements River{
          String secretKey = XContentMapValues.nodeStringValue(feed.get("secretKey"), null);
          
          feedDefinition = new S3RiverFeedDefinition(feedname, bucket, pathPrefix, downloadHost,
-               updateRate, Arrays.asList(includes), Arrays.asList(excludes), accessKey, secretKey, jsonSupport);
+               updateRate, Arrays.asList(includes), Arrays.asList(excludes), accessKey, secretKey, jsonSupport, deleteOnS3);
       } else {
          logger.error("You didn't define the amazon-s3 settings. Exiting... See https://github.com/lbroudoux/es-amazon-s3-river");
          indexName = null;
@@ -339,7 +340,6 @@ public class S3River extends AbstractRiverComponent implements River{
                // if (logger.isDebugEnabled()){
                   logger.warn("Exception for folder {} is {}", feedDefinition.getBucket(), e);
                   logger.warn("Stack trace: ", e);
-                  //e.printStackTrace();
                // 
             }
             
@@ -417,14 +417,13 @@ public class S3River extends AbstractRiverComponent implements River{
       
       /** Scan the Amazon S3 bucket for last changes. */
       private Long scan(Long lastScanTime) throws Exception{
+         boolean deleteOnS3 = this.feedDefinition.isDeleteOnS3();
+
          if (logger.isDebugEnabled()){
             logger.debug("Starting scanning of bucket {} since {}", feedDefinition.getBucket(), lastScanTime);
          }
-         S3ObjectSummaries summaries = s3.getObjectSummaries(lastScanTime);
-         
-         // Store now already indexed ids.
-         List<String> previousFileIds = getAlreadyIndexFileIds();
-         
+         S3ObjectSummaries summaries = s3.getObjectSummaries(lastScanTime, deleteOnS3);
+                  
          // Browse change and checks if its indexable before starting.
          for (S3ObjectSummary summary : summaries.getPickedSummaries()){
             if (S3RiverUtil.isIndexable(summary.getKey(), feedDefinition.getIncludes(), feedDefinition.getExcludes())){
@@ -435,16 +434,22 @@ public class S3River extends AbstractRiverComponent implements River{
          // Now, because we do not get changes but only present files, we should 
          // compare previously indexed files with latest to extract deleted ones...
          // But before, we need to produce a list of index ids corresponding to S3 keys.
-         List<String> summariesIds = new ArrayList<String>();
-         for (String key : summaries.getKeys()){
-            summariesIds.add(buildIndexIdFromS3Key(key));
-         }
-         for (String previousFileId : previousFileIds){
-            if (!summariesIds.contains(previousFileId)){
-               esDelete(indexName, typeName, previousFileId);
+         // This is pretty hard on memory if you have a directory with millions of files, so 
+         // if you don't need that, I allow you to disable the syncing by setting the deleteOnS3
+         // flag to false (disables deletion syncs both ways)
+         if (deleteOnS3) {
+            List<String> previousFileIds = getAlreadyIndexFileIds();
+            List<String> summariesIds = new ArrayList<String>();
+            for (String key : summaries.getKeys()){
+               summariesIds.add(buildIndexIdFromS3Key(key));
+            }
+            for (String previousFileId : previousFileIds){
+               if (!summariesIds.contains(previousFileId)){
+                  esDelete(indexName, typeName, previousFileId);
+               }
             }
          }
-         
+
          return summaries.getLastScanTime();
       }
       
