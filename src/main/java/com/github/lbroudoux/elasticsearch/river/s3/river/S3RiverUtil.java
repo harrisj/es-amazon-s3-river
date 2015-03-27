@@ -109,7 +109,7 @@ public class S3RiverUtil{
       // Exclude rules : we know that whatever includes rules are, we should exclude matching files.
       if (excludes != null){
          for (String exclude : excludes){
-            String regex = exclude.replace("?", ".?").replace("*", ".*?");
+            String regex = exclude.replace("?", ".?").replace("*", ".*");
             if (key.matches(regex)){
                return false;
             }
@@ -122,7 +122,7 @@ public class S3RiverUtil{
       }
       if (includes != null){
          for (String include : includes){
-            String regex = include.replace("?", ".?").replace("*", ".*?");
+            String regex = include.replace("?", ".?").replace("*", ".*");
             if (key.matches(regex)){
                return true;
             }

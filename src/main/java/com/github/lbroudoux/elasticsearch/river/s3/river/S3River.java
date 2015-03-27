@@ -23,9 +23,13 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.io.UnsupportedEncodingException;
 
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import org.apache.tika.metadata.Metadata;
+import org.apache.commons.codec.binary.Base64;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.bulk.*;
@@ -221,7 +225,7 @@ public class S3River extends AbstractRiverComponent implements River{
             .build();
 
       // We create as many Threads as there are feeds.
-      feedThread = EsExecutors.daemonThreadFactory(settings.globalSettings(), "fs_slurper")
+      feedThread = EsExecutors.daemonThreadFactory(settings.globalSettings(), "s3_slurper")
             .newThread(new S3Scanner(feedDefinition));
       feedThread.start();
    }
@@ -344,9 +348,7 @@ public class S3River extends AbstractRiverComponent implements River{
             }
             
             try {
-               if (logger.isDebugEnabled()){
-                  logger.debug("Amazon S3 river is going to sleep for {} ms", feedDefinition.getUpdateRate());
-               }
+               logger.info("Amazon S3 river is going to sleep for {} ms", feedDefinition.getUpdateRate());
                Thread.sleep(feedDefinition.getUpdateRate());
             } catch (InterruptedException ie){
             }
@@ -482,6 +484,7 @@ public class S3River extends AbstractRiverComponent implements River{
          try{
             // Build a unique id from S3 unique summary key.
             String fileId = buildIndexIdFromS3Key(summary.getKey());
+            // logger.info("SHA-256 key for '{}'' is {}", summary.getKey(), fileId);
 
             if (feedDefinition.isJsonSupport()){
                esIndex(indexName, typeName, summary.getKey(), s3.getContent(summary));
@@ -538,8 +541,12 @@ public class S3River extends AbstractRiverComponent implements River{
       }
       
       /** Build a unique id from S3 unique summary key. */
-      private String buildIndexIdFromS3Key(String key){
-         return key.replace('/', '-').replace(' ', '+');
+      private String buildIndexIdFromS3Key(String key) throws NoSuchAlgorithmException,UnsupportedEncodingException {
+         //return key.replace('/', '-').replace(' ', '-');
+
+         // Let's just build a SHA-1 key instead
+         MessageDigest md = MessageDigest.getInstance("SHA-256");
+         return Base64.encodeBase64String(md.digest(key.getBytes())).replace('/', '_').replace('+', '-').replace("=", "");
       }
       
       /** Update river last changes id value.*/

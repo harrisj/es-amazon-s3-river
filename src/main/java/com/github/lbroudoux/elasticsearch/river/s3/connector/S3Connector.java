@@ -40,7 +40,8 @@ import com.github.lbroudoux.elasticsearch.river.s3.river.S3RiverFeedDefinition;
  * @author laurent
  */
 public class S3Connector{
-  final int MAX_NEW_RESULTS_TO_INDEX_ON_RUN = 10000;
+  // This will only work if you can check presence in ES easily
+  //final int MAX_NEW_RESULTS_TO_INDEX_ON_RUN = 4000000;
 
    private static final ESLogger logger = Loggers.getLogger(S3Connector.class);
    
@@ -78,9 +79,8 @@ public class S3Connector{
     * @return Summaries of picked objects.
     */
    public S3ObjectSummaries getObjectSummaries(Long lastScanTime, boolean deleteOnS3){
-      if (logger.isDebugEnabled()){
-         logger.debug("Getting buckets changes since {}", lastScanTime);
-      }
+      logger.info("Getting buckets changes since {}", lastScanTime);
+
       List<String> keys = new ArrayList<String>();
       List<S3ObjectSummary> result = new ArrayList<S3ObjectSummary>();
       
@@ -91,7 +91,7 @@ public class S3Connector{
       }
       
       ListObjectsRequest request = new ListObjectsRequest().withBucketName(bucketName)
-            .withPrefix(pathPrefix).withEncodingType("url");
+            .withPrefix(pathPrefix); //.withEncodingType("url");
       ObjectListing listing = s3Client.listObjects(request);
       logger.debug("Listing: {}", listing);
       int keyCount = 0;
@@ -102,32 +102,39 @@ public class S3Connector{
          if (logger.isDebugEnabled()){
             logger.debug("Found {} items in this listObjects page", summaries.size());
          }
+
          for (S3ObjectSummary summary : summaries){
             if (logger.isDebugEnabled()){
-               logger.debug("Getting {} last modified on {}", summary.getKey(), summary.getLastModified());
+               // logger.debug("Getting {} last modified on {}", summary.getKey(), summary.getLastModified());
             }
 
-            keyCount += 1;
             if (deleteOnS3) {
               keys.add(summary.getKey());
             }
 
             if (summary.getLastModified().getTime() > lastScanTime){
-              if (result.size() < MAX_NEW_RESULTS_TO_INDEX_ON_RUN) {
-                 logger.debug("  Picked !");
+                 // logger.debug("  Picked !");
                  result.add(summary);
-              } else if (!resultLimit && result.size() == MAX_NEW_RESULTS_TO_INDEX_ON_RUN) {
-                logger.info("Only indexing up to 10,000 new objects on this indexing run");
-                resultLimit = true;
 
-                if (!deleteOnS3) {
-                  // No need to keep iterating through all keys if we aren't doing deleteOnS3 
-                  break;
-                }
-              }
+              // DISABLED
+              // } else if (!resultLimit && result.size() == MAX_NEW_RESULTS_TO_INDEX_ON_RUN) {
+              //   logger.info("Only indexing up to {} new objects on this indexing run", MAX_NEW_RESULTS_TO_INDEX_ON_RUN);
+              //   resultLimit = true;
+
+              //   if (!deleteOnS3) {
+              //     // No need to keep iterating through all keys if we aren't doing deleteOnS3 
+              //     break;
+              //   }
+              // }
             }
+
+            keyCount += 1;
          }
 
+         if (resultLimit && !deleteOnS3) {
+           break;
+         }
+ 
          listing = s3Client.listNextBatchOfObjects(listing);
       }
       
@@ -142,14 +149,14 @@ public class S3Connector{
    }
 
    public String getDecodedKey(S3ObjectSummary summary) {
-      // return summary.getKey();  // If you deactivate using withEncodingType above
+      return summary.getKey();  // If you deactivate using withEncodingType above
 
-      try {
-        return java.net.URLDecoder.decode(summary.getKey(), "UTF-8");
-      } catch (java.io.UnsupportedEncodingException e) {
-        e.printStackTrace();
-        return null;
-      }
+      // try {
+      //   return java.net.URLDecoder.decode(summary.getKey(), "UTF-8");
+      // } catch (java.io.UnsupportedEncodingException e) {
+      //   e.printStackTrace();
+      //   return null;
+      // }
    }
 
    /**
