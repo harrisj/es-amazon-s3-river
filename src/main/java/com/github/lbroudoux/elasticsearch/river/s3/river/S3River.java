@@ -333,7 +333,7 @@ public class S3River extends AbstractRiverComponent implements River{
             try{
                if (isStarted()){
                   // Scan folder starting from last changes id, then record the new one.
-                  Long lastScanTime = getLastScanTimeFromRiver("_lastScanTime");
+                  Long lastScanTime = getLongFromRiver("_lastScanTime");
                   lastScanTime = scan(lastScanTime);
                   updateRiverLong("_lastScanTime", lastScanTime);
                } else {
@@ -381,42 +381,63 @@ public class S3River extends AbstractRiverComponent implements River{
       }
       
       @SuppressWarnings("unchecked")
-      private Long getLastScanTimeFromRiver(String lastScanTimeField){
-         Long result = null;
+      private Object getObjectFromRiver(String field){
+         Object result = null;
          try {
             // Do something.
             client.admin().indices().prepareRefresh("_river").execute().actionGet();
-            GetResponse lastSeqGetResponse = client.prepareGet("_river", riverName().name(),
-                  lastScanTimeField).execute().actionGet();
-            if (lastSeqGetResponse.isExists()) {
-               Map<String, Object> fsState = (Map<String, Object>) lastSeqGetResponse.getSourceAsMap().get("amazon-s3");
-
-               if (fsState != null){
-                  Object lastScanTime= fsState.get(lastScanTimeField);
-                  if (lastScanTime != null){
-                     try{
-                        result = Long.parseLong(lastScanTime.toString());
-                     } catch (NumberFormatException nfe){
-                        logger.warn("Last recorded lastScanTime is not a Long {}", lastScanTime.toString());
-                     }
-                  }
-               }
+            GetResponse getResponse = client.prepareGet("_river", riverName().name(), field).execute().actionGet();
+            if (getResponse.isExists()) {
+               Map<String, Object> fsState = (Map<String, Object>) getResponse.getSourceAsMap().get("amazon-s3");
+               result = fsState.get(field);
             } else {
                // This is first call, just log in debug mode.
-               if (logger.isDebugEnabled()){
-                  logger.debug("{} doesn't exist", lastScanTimeField);
-               }
+               logger.debug("{} doesn't exist", field);
             }
          } catch (Exception e) {
-            logger.warn("failed to get _lastScanTimeField, throttling....", e);
+            logger.warn("failed to get {}, throttling....", field, e);
          }
 
          if (logger.isDebugEnabled()){
-            logger.debug("lastScanTimeField: {}", result);
+            logger.debug("{}: {}", field, result);
          }
          return result;
       }
-      
+
+      @SuppressWarnings("unchecked")
+      private String getStringFromRiver(String field){
+         Object result = getObjectFromRiver(field);
+         if (result == null) {
+            return null;
+         } else {
+            return ((String) result);
+         }
+      }
+
+      @SuppressWarnings("unchecked")
+      private boolean getBooleanFromRiver(String field){
+         Object result = getObjectFromRiver(field);
+         if (result == null) {
+            return false; // FIXME: hmm?
+         } else {
+            return ((boolean) result);
+         }
+      }
+
+      @SuppressWarnings("unchecked")
+      private Long getLongFromRiver(String field){
+         Object result = getObjectFromRiver(field);
+         if (result != null) {
+            try{
+               return Long.parseLong(result.toString());
+            } catch (NumberFormatException nfe){
+               logger.warn("Last recorded {} is not a Long: {}", field, result.toString());
+            }
+         }
+
+         return null;
+      }
+
       /** Scan the Amazon S3 bucket for last changes. */
       private Long scan(Long lastScanTime) throws Exception{
          boolean deleteOnS3 = this.feedDefinition.isDeleteOnS3();
@@ -550,7 +571,7 @@ public class S3River extends AbstractRiverComponent implements River{
       }
       
       /** Update river last changes id value.*/
-      private void updateRiverLong(String field, Long value) throws Exception{
+      private void updateRiverObject(String field, Object value) throws Exception {
          if (logger.isDebugEnabled()){
             logger.debug("Updating {}: {}", field, value);
          }
@@ -563,39 +584,20 @@ public class S3River extends AbstractRiverComponent implements River{
                   .field(field, value)
                .endObject()
             .endObject();
-         esIndex("_river", riverName.name(), field, xb);
+         esIndex("_river", riverName.name(), field, xb);         
+      }
+
+      // just in case I need to modify the values passed into updateRiverObject
+      private void updateRiverLong(String field, Long value) throws Exception{
+         updateRiverObject(field, value);
       }
 
       private void updateRiverString(String field, String value) throws Exception{
-         // We store the lastupdate date and some stats
-         if (logger.isDebugEnabled()){
-            logger.debug("Updating {}: {}", field, value);
-         }
-
-         XContentBuilder xb = jsonBuilder()
-            .startObject()
-               .startObject("amazon-s3")
-                  .field("feedname", feedDefinition.getFeedname())
-                  .field(field, value)
-               .endObject()
-            .endObject();
-         esIndex("_river", riverName.name(), field, xb);
+         updateRiverObject(field, value);
       }
 
       private void updateRiverBool(String field, boolean value) throws Exception{
-         // We store the lastupdate date and some stats
-         if (logger.isDebugEnabled()){
-            logger.debug("Updating {}: {}", field, value);
-         }
-
-         XContentBuilder xb = jsonBuilder()
-            .startObject()
-               .startObject("amazon-s3")
-                  .field("feedname", feedDefinition.getFeedname())
-                  .field(field, value)
-               .endObject()
-            .endObject();
-         esIndex("_river", riverName.name(), field, xb);
+         updateRiverObject(field, value);
       }
 
       /** Add to bulk an IndexRequest. */
