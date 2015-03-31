@@ -335,7 +335,7 @@ public class S3River extends AbstractRiverComponent implements River{
                   // Scan folder starting from last changes id, then record the new one.
                   Long lastScanTime = getLastScanTimeFromRiver("_lastScanTime");
                   lastScanTime = scan(lastScanTime);
-                  updateRiver("_lastScanTime", lastScanTime);
+                  updateRiverLong("_lastScanTime", lastScanTime);
                } else {
                   logger.info("Amazon S3 River is disabled for {}", riverName().name());
                }
@@ -550,9 +550,9 @@ public class S3River extends AbstractRiverComponent implements River{
       }
       
       /** Update river last changes id value.*/
-      private void updateRiver(String lastScanTimeField, Long lastScanTime) throws Exception{
+      private void updateRiverLong(String field, Long value) throws Exception{
          if (logger.isDebugEnabled()){
-            logger.debug("Updating lastScanTimeField: {}", lastScanTime);
+            logger.debug("Updating {}: {}", field, value);
          }
 
          // We store the lastupdate date and some stats
@@ -560,10 +560,42 @@ public class S3River extends AbstractRiverComponent implements River{
             .startObject()
                .startObject("amazon-s3")
                   .field("feedname", feedDefinition.getFeedname())
-                  .field(lastScanTimeField, lastScanTime)
+                  .field(field, value)
                .endObject()
             .endObject();
-         esIndex("_river", riverName.name(), lastScanTimeField, xb);
+         esIndex("_river", riverName.name(), field, xb);
+      }
+
+      private void updateRiverString(String field, String value) throws Exception{
+         // We store the lastupdate date and some stats
+         if (logger.isDebugEnabled()){
+            logger.debug("Updating {}: {}", field, value);
+         }
+
+         XContentBuilder xb = jsonBuilder()
+            .startObject()
+               .startObject("amazon-s3")
+                  .field("feedname", feedDefinition.getFeedname())
+                  .field(field, value)
+               .endObject()
+            .endObject();
+         esIndex("_river", riverName.name(), field, xb);
+      }
+
+      private void updateRiverBool(String field, boolean value) throws Exception{
+         // We store the lastupdate date and some stats
+         if (logger.isDebugEnabled()){
+            logger.debug("Updating {}: {}", field, value);
+         }
+
+         XContentBuilder xb = jsonBuilder()
+            .startObject()
+               .startObject("amazon-s3")
+                  .field("feedname", feedDefinition.getFeedname())
+                  .field(field, value)
+               .endObject()
+            .endObject();
+         esIndex("_river", riverName.name(), field, xb);
       }
 
       /** Add to bulk an IndexRequest. */
