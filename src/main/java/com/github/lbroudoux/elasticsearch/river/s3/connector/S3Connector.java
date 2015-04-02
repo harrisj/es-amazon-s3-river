@@ -41,7 +41,7 @@ import com.github.lbroudoux.elasticsearch.river.s3.river.S3RiverFeedDefinition;
  */
 public class S3Connector{
   // This will only work if you can check presence in ES easily
-  //final int MAX_NEW_RESULTS_TO_INDEX_ON_RUN = 4000000;
+  final int MAX_NEW_RESULTS_TO_INDEX_ON_RUN = 10000;
 
    private static final ESLogger logger = Loggers.getLogger(S3Connector.class);
    
@@ -78,70 +78,87 @@ public class S3Connector{
     * @param lastScanTime Last modification date filter
     * @return Summaries of picked objects.
     */
-   public S3ObjectSummaries getObjectSummaries(Long lastScanTime, boolean deleteOnS3){
-      logger.info("Getting buckets changes since {}", lastScanTime);
+   public S3ObjectSummaries getObjectSummaries(Long lastScanTime, String initialScanBookmark, boolean trackS3Deletions) {
 
       List<String> keys = new ArrayList<String>();
       List<S3ObjectSummary> result = new ArrayList<S3ObjectSummary>();
-      
+      boolean initialScan = initialScanBookmark != null;
+
+      if (initialScan) {
+        trackS3Deletions = false;
+        logger.info("{} resuming InitialScan from {}", pathPrefix, initialScanBookmark);
+      } else {
+        logger.info("{} Getting buckets changes since {}", pathPrefix, lastScanTime);
+      }
+
       // Store the scan time to return before doing big queries...
       Long lastScanTimeToReturn = System.currentTimeMillis();
-      if (lastScanTime == null){
+
+      if (lastScanTime == null || initialScan) {
          lastScanTime = 0L;
       }
       
       ListObjectsRequest request = new ListObjectsRequest().withBucketName(bucketName)
             .withPrefix(pathPrefix).withEncodingType("url");
       ObjectListing listing = s3Client.listObjects(request);
-      logger.debug("Listing: {}", listing);
+      //logger.debug("Listing: {}", listing);
       int keyCount = 0;
-      boolean resultLimit = false;
+      boolean scanTruncated = false;
+      String lastKey = null;
 
       while (!listing.getObjectSummaries().isEmpty() || listing.isTruncated()){
          List<S3ObjectSummary> summaries = listing.getObjectSummaries();
-         if (logger.isDebugEnabled()){
-            logger.debug("Found {} items in this listObjects page", summaries.size());
-         }
+         // if (logger.isDebugEnabled()) {
+         //    logger.debug("Found {} items in this listObjects page", summaries.size());
+         // }
 
-         for (S3ObjectSummary summary : summaries){
+         for (S3ObjectSummary summary : summaries) {
             if (logger.isDebugEnabled()){
                // logger.debug("Getting {} last modified on {}", summary.getKey(), summary.getLastModified());
             }
 
-            if (deleteOnS3) {
+            if (trackS3Deletions) {
               keys.add(summary.getKey());
             }
 
-            if (summary.getLastModified().getTime() > lastScanTime){
+            if (summary.getLastModified().getTime() > lastScanTime && result.size() < MAX_NEW_RESULTS_TO_INDEX_ON_RUN) {
                  // logger.debug("  Picked !");
-                 result.add(summary);
 
-              // DISABLED
-              // } else if (!resultLimit && result.size() == MAX_NEW_RESULTS_TO_INDEX_ON_RUN) {
-              //   logger.info("Only indexing up to {} new objects on this indexing run", MAX_NEW_RESULTS_TO_INDEX_ON_RUN);
-              //   resultLimit = true;
+                if (!initialScan || initialScanBookmark.compareTo(summary.getKey()) < 0) {
+                   logger.debug("  Picked {}", summary.getKey());
+                   result.add(summary);
+                   lastKey = summary.getKey();
+                 }
 
-              //   if (!deleteOnS3) {
-              //     // No need to keep iterating through all keys if we aren't doing deleteOnS3 
-              //     break;
-              //   }
-              // }
-            }
+              } else if (!scanTruncated && result.size() == MAX_NEW_RESULTS_TO_INDEX_ON_RUN) {
+                logger.info("Only indexing up to {} new objects on this indexing run", MAX_NEW_RESULTS_TO_INDEX_ON_RUN);
+                // initialScan = true;
+                scanTruncated = true;
+
+                if (!trackS3Deletions) {
+                  // No need to keep iterating through all keys if we aren't doing deleteOnS3 
+                  break;
+                }
+              }
 
             keyCount += 1;
          }
 
-         if (resultLimit && !deleteOnS3) {
+         if (initialScan && scanTruncated && !trackS3Deletions) {
            break;
          }
  
          listing = s3Client.listNextBatchOfObjects(listing);
       }
-      
-      // Wrap results and latest scan time.
-      logger.info("S3 scan complete: {} files ({} new)", keyCount, result.size());
 
-      return new S3ObjectSummaries(lastScanTimeToReturn, result, keys);
+      // Wrap results and latest scan time.
+      if (scanTruncated) {
+        logger.info("S3 truncated scan for speed: {} files ({} new)", keyCount, result.size());
+      } else {
+        logger.info("S3 complete scan: {} files ({} new)", keyCount, result.size());
+      }
+
+      return new S3ObjectSummaries(lastScanTimeToReturn, lastKey, scanTruncated, trackS3Deletions, result, keys);
    }
    
    public Map<String,Object> getS3UserMetadata(String key){ 
@@ -149,10 +166,12 @@ public class S3Connector{
    }
 
    public String getDecodedKey(S3ObjectSummary summary) {
+
       //return summary.getKey();  // If you deactivate using withEncodingType above
+      //logger.info("Raw key {}", summary.getKey());
 
       try {
-        return java.net.URLDecoder.decode(summary.getKey(), "UTF-8");
+        return java.net.URLDecoder.decode(summary.getKey().replace("+", " "), "UTF-8");
       } catch (java.io.UnsupportedEncodingException e) {
         e.printStackTrace();
         return null;

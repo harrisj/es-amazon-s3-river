@@ -38,11 +38,18 @@ public class S3ObjectSummaries implements Serializable{
    private List<String> keys;
    private List<S3ObjectSummary> pickedSummaries;
 
+   private String lastKey;
+   private boolean scanTruncated;
+   private boolean trackS3Deletions;
+
    
-   public S3ObjectSummaries(Long lastScanTime, List<S3ObjectSummary> summaries, List<String> keys){
+   public S3ObjectSummaries(Long lastScanTime, String lastKey, boolean scanTruncated, boolean trackS3Deletions, List<S3ObjectSummary> summaries, List<String> keys){
       this.lastScanTime = lastScanTime;
       this.pickedSummaries = summaries;
       this.keys = keys;
+      this.lastKey = lastKey;
+      this.scanTruncated = scanTruncated;
+      this.trackS3Deletions = trackS3Deletions;
    }
    
    public Long getLastScanTime(){
@@ -55,5 +62,17 @@ public class S3ObjectSummaries implements Serializable{
    
    public List<S3ObjectSummary> getPickedSummaries(){
       return pickedSummaries;
+   }
+
+   public String getLastKey() {
+      return lastKey;
+   }
+
+   public boolean trackS3Deletions() {
+      return trackS3Deletions;
+   }
+
+   public boolean getScanTruncated() {
+      return scanTruncated;
    }
 }

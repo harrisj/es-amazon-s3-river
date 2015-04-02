@@ -104,7 +104,7 @@ public class S3River extends AbstractRiverComponent implements River{
          String downloadHost = XContentMapValues.nodeStringValue(feed.get("download_host"), null);
          int updateRate = XContentMapValues.nodeIntegerValue(feed.get("update_rate"), 15 * 60 * 1000);
          boolean jsonSupport = XContentMapValues.nodeBooleanValue(feed.get("json_support"), false);
-         boolean deleteOnS3 = XContentMapValues.nodeBooleanValue(feed.get("deleteS3"), true);
+         boolean trackS3Deletions = XContentMapValues.nodeBooleanValue(feed.get("deleteS3"), true);
          
          String[] includes = S3RiverUtil.buildArrayFromSettings(settings.settings(), "amazon-s3.includes");
          String[] excludes = S3RiverUtil.buildArrayFromSettings(settings.settings(), "amazon-s3.excludes");
@@ -114,7 +114,7 @@ public class S3River extends AbstractRiverComponent implements River{
          String secretKey = XContentMapValues.nodeStringValue(feed.get("secretKey"), null);
          
          feedDefinition = new S3RiverFeedDefinition(feedname, bucket, pathPrefix, downloadHost,
-               updateRate, Arrays.asList(includes), Arrays.asList(excludes), accessKey, secretKey, jsonSupport, deleteOnS3);
+               updateRate, Arrays.asList(includes), Arrays.asList(excludes), accessKey, secretKey, jsonSupport, trackS3Deletions);
       } else {
          logger.error("You didn't define the amazon-s3 settings. Exiting... See https://github.com/lbroudoux/es-amazon-s3-river");
          indexName = null;
@@ -319,6 +319,10 @@ public class S3River extends AbstractRiverComponent implements River{
       private BulkRequestBuilder bulk;
       private S3RiverFeedDefinition feedDefinition;
       
+      final String LAST_SCAN_TIME_FIELD = "_lastScanTime";
+      final String INITIAL_SCAN_BOOKMARK_FIELD = "_initialScanBookmark";
+      final String INITIAL_SCAN_FINISHED_FIELD = "_initialScanFinished";
+
       public S3Scanner(S3RiverFeedDefinition feedDefinition){
          this.feedDefinition = feedDefinition;
       }
@@ -331,11 +335,31 @@ public class S3River extends AbstractRiverComponent implements River{
             }
             
             try{
-               if (isStarted()){
+               if (isStarted()) {
                   // Scan folder starting from last changes id, then record the new one.
-                  Long lastScanTime = getLongFromRiver("_lastScanTime");
-                  lastScanTime = scan(lastScanTime);
-                  updateRiverLong("_lastScanTime", lastScanTime);
+                  boolean initialScanFinished = getBooleanFromRiver(INITIAL_SCAN_FINISHED_FIELD);
+                  String initialScanBookmark = getStringFromRiver(INITIAL_SCAN_BOOKMARK_FIELD);
+                  
+                  logger.debug("INIT SCAN FINISHED: {} BOOKMARK: {}", initialScanFinished, initialScanBookmark);
+
+                  if (initialScanFinished) {
+                     initialScanBookmark = null;
+                  } else if (initialScanBookmark == null) {
+                     initialScanBookmark = "";
+                  }
+
+                  Long lastScanTime = getLongFromRiver(LAST_SCAN_TIME_FIELD);
+                  S3ObjectSummaries summaries = scan(lastScanTime, initialScanBookmark, trackS3Deletions());
+
+                  updateRiverLong(LAST_SCAN_TIME_FIELD, summaries.getLastScanTime());
+
+                  if (summaries.getScanTruncated()) {
+                     // still have more initial scanning to do
+                     forceInitialScan(summaries.getLastKey());
+                  } else {
+                     logger.debug("Finished with initial scan");
+                     finishInitialScan();
+                  }
                } else {
                   logger.info("Amazon S3 River is disabled for {}", riverName().name());
                }
@@ -353,6 +377,29 @@ public class S3River extends AbstractRiverComponent implements River{
             } catch (InterruptedException ie){
             }
          }
+      }
+
+      public void forceInitialScan(String lastKey) throws Exception {
+         logger.info("Force Initial new bookmark: {}", lastKey);
+         updateRiverString(INITIAL_SCAN_BOOKMARK_FIELD, lastKey);
+         updateRiverBoolean(INITIAL_SCAN_FINISHED_FIELD, false);         
+      }
+
+      public boolean initialScanFinished() throws Exception {
+         return getBooleanFromRiver(INITIAL_SCAN_FINISHED_FIELD);
+      }
+
+      public String initialScanBookmark() throws Exception {
+         return getStringFromRiver(INITIAL_SCAN_BOOKMARK_FIELD);
+      }
+
+      public void finishInitialScan() throws Exception {
+         updateRiverString(INITIAL_SCAN_BOOKMARK_FIELD, null);
+         updateRiverBoolean(INITIAL_SCAN_FINISHED_FIELD, true);    
+      }
+
+      public boolean trackS3Deletions() {
+         return this.feedDefinition.trackS3Deletions();
       }
       
       private boolean isStarted(){
@@ -439,13 +486,12 @@ public class S3River extends AbstractRiverComponent implements River{
       }
 
       /** Scan the Amazon S3 bucket for last changes. */
-      private Long scan(Long lastScanTime) throws Exception{
-         boolean deleteOnS3 = this.feedDefinition.isDeleteOnS3();
-
+      private S3ObjectSummaries scan(Long lastScanTime, String initialScanBookmark, boolean trackS3Deletions) throws Exception{
          if (logger.isDebugEnabled()){
             logger.debug("Starting scanning of bucket {} since {}", feedDefinition.getBucket(), lastScanTime);
          }
-         S3ObjectSummaries summaries = s3.getObjectSummaries(lastScanTime, deleteOnS3);
+
+         S3ObjectSummaries summaries = s3.getObjectSummaries(lastScanTime, initialScanBookmark, trackS3Deletions);
                   
          // Browse change and checks if its indexable before starting.
          for (S3ObjectSummary summary : summaries.getPickedSummaries()){
@@ -458,9 +504,9 @@ public class S3River extends AbstractRiverComponent implements River{
          // compare previously indexed files with latest to extract deleted ones...
          // But before, we need to produce a list of index ids corresponding to S3 keys.
          // This is pretty hard on memory if you have a directory with millions of files, so 
-         // if you don't need that, I allow you to disable the syncing by setting the deleteOnS3
+         // if you don't need that, I allow you to disable the syncing by setting the trackS3Deletions
          // flag to false (disables deletion syncs both ways)
-         if (deleteOnS3) {
+         if (summaries.trackS3Deletions()) {
             List<String> previousFileIds = getAlreadyIndexFileIds();
             List<String> summariesIds = new ArrayList<String>();
             for (String key : summaries.getKeys()){
@@ -473,7 +519,7 @@ public class S3River extends AbstractRiverComponent implements River{
             }
          }
 
-         return summaries.getLastScanTime();
+         return summaries;
       }
       
       /** Retrieve the ids of files already present into index. */
@@ -596,7 +642,7 @@ public class S3River extends AbstractRiverComponent implements River{
          updateRiverObject(field, value);
       }
 
-      private void updateRiverBool(String field, boolean value) throws Exception{
+      private void updateRiverBoolean(String field, boolean value) throws Exception{
          updateRiverObject(field, value);
       }
 
