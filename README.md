@@ -309,8 +309,17 @@ We now use directly Tika instead of the mapper-attachment plugin.
   }
 }
 ``` 
+
+Reduced Memory Consumption
+--------------------------
+
+Normally, the River will try to keep the ElasticSearch repository in sync with what is on S3. This means that if a record is deleted
+on S3, it is removed from ElasticSearch and vice versa. This can be very memory and time-intensive for large collections of documents,
+since it means that all keys must be retrieved from the bucket first into a large array. Then this array is used to see if any keys are no longer in ElasticSearch and should be deleted from S3. For large collections of millions of files, you will see Java run out of heap memory when attempting to index the river. I've made a few changes to make it more memory-efficient:
+
+* When creating the river, you can declare `"deleteS3": false` in the `_meta` configuration for the river. This will disable the synchronization for deletes between ElasticSearch and S3. In most cases, you might want to disable the synchronization even for small collections and use a read-only key for accessing the S3 collections if you never want source documents to be deleted.
+* In addition, the S3 river would originally work by ingesting every document greater than a modification date of 0 on the first run and after that, it would only index what had changed. For collections with millions of documents though, it would run out of memory before indexing anything. Ugh. So, now there is a cap of 10,000 documents indexed on a given run. The next 10,000 will be added when the river is started again and so on until everything is in the river. This should keep the river from crashing.
      
-    
 License
 =======
 
