@@ -55,13 +55,23 @@ public class S3RiverUtil{
             .startObject("file")
                .startObject("properties")
                   .startObject("title").field("type", "string").field("store", "yes").endObject()
-                  .startObject("file").field("type", "string")
+                  // .startObject("file").field("type", "string")
+                  //    .field("term_vector", "with_positions_offsets")
+                  //    .field("index_options", "offsets")
+                  //    .field("store", "yes")
+                  // .endObject()
+               .endObject()
+            .endObject()
+            .startObject("analyzed")
+               .startObject("properties")
+                  .startObject("body").field("type", "string")
                      .field("term_vector", "with_positions_offsets")
                      .field("index_options", "offsets")
                      .field("store", "yes")
                   .endObject()
                .endObject()
             .endObject()
+
             .endObject().endObject().endObject();
       return xbMapping;
    }
