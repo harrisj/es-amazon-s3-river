@@ -617,7 +617,7 @@ public class S3River extends AbstractRiverComponent implements River{
 
          // Let's just build a SHA-1 key instead
          MessageDigest md = MessageDigest.getInstance("SHA-256");
-         return Base64.encodeBase64String(md.digest(key.getBytes())).replace('/', '_').replace('+', '-').replace("=", "");
+         return Base64.encodeBase64String(md.digest(key.getBytes())).replace('/', '_').replace('+', '-').replace("=", "").replace("\n", "").replace("\r", "");
       }
       
       /** Update river last changes id value.*/
