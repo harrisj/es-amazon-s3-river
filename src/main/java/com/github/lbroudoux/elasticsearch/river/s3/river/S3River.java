@@ -322,6 +322,7 @@ public class S3River extends AbstractRiverComponent implements River{
       final String LAST_SCAN_TIME_FIELD = "_lastScanTime";
       final String INITIAL_SCAN_BOOKMARK_FIELD = "_initialScanBookmark";
       final String INITIAL_SCAN_FINISHED_FIELD = "_initialScanFinished";
+      final int INITIAL_SCAN_SLEEP_INTERVAL = 2*60*1000;  
 
       public S3Scanner(S3RiverFeedDefinition feedDefinition){
          this.feedDefinition = feedDefinition;
@@ -329,7 +330,9 @@ public class S3River extends AbstractRiverComponent implements River{
       
       @Override
       public void run(){
+
          while (true){
+            int sleepInterval = feedDefinition.getUpdateRate();
             if (closed){
                return;
             }
@@ -356,6 +359,7 @@ public class S3River extends AbstractRiverComponent implements River{
                   if (summaries.getScanTruncated()) {
                      // still have more initial scanning to do
                      forceInitialScan(summaries.getLastKey());
+                     sleepInterval = INITIAL_SCAN_SLEEP_INTERVAL;
                   } else {
                      logger.debug("Finished with initial scan");
                      finishInitialScan();
@@ -372,8 +376,8 @@ public class S3River extends AbstractRiverComponent implements River{
             }
             
             try {
-               logger.info("Amazon S3 river is going to sleep for {} ms", feedDefinition.getUpdateRate());
-               Thread.sleep(feedDefinition.getUpdateRate());
+               logger.info("Amazon S3 river is going to sleep for {} ms", sleepInterval);
+               Thread.sleep(sleepInterval);
             } catch (InterruptedException ie){
             }
          }
