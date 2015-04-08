@@ -78,7 +78,7 @@ public class S3Connector{
     * @param lastScanTime Last modification date filter
     * @return Summaries of picked objects.
     */
-   public S3ObjectSummaries getObjectSummaries(Long lastScanTime, String initialScanBookmark, boolean trackS3Deletions) {
+   public S3ObjectSummaries getObjectSummaries(String riverName, Long lastScanTime, String initialScanBookmark, boolean trackS3Deletions) {
 
       List<String> keys = new ArrayList<String>();
       List<S3ObjectSummary> result = new ArrayList<S3ObjectSummary>();
@@ -86,9 +86,9 @@ public class S3Connector{
 
       if (initialScan) {
         trackS3Deletions = false;
-        logger.info("{} resuming InitialScan from {}", pathPrefix, initialScanBookmark);
+        logger.info("{}: resuming initial scan of {} from {}", riverName, pathPrefix, initialScanBookmark);
       } else {
-        logger.info("{} Getting buckets changes since {}", pathPrefix, lastScanTime);
+        logger.info("{}: checking {} for changes since {}", riverName, pathPrefix, lastScanTime);
       }
 
       // Store the scan time to return before doing big queries...
@@ -131,7 +131,7 @@ public class S3Connector{
                  }
 
               } else if (!scanTruncated && result.size() == MAX_NEW_RESULTS_TO_INDEX_ON_RUN) {
-                logger.info("Only indexing up to {} new objects on this indexing run", MAX_NEW_RESULTS_TO_INDEX_ON_RUN);
+                logger.info("{}: only indexing up to {} new objects on this indexing run", riverName, MAX_NEW_RESULTS_TO_INDEX_ON_RUN);
                 // initialScan = true;
                 scanTruncated = true;
 
@@ -153,9 +153,9 @@ public class S3Connector{
 
       // Wrap results and latest scan time.
       if (scanTruncated) {
-        logger.info("S3 truncated scan for speed: {} files ({} new)", keyCount, result.size());
+        logger.info("{}: scan truncated for speed: {} files ({} new)", riverName, keyCount, result.size());
       } else {
-        logger.info("S3 complete scan: {} files ({} new)", keyCount, result.size());
+        logger.info("{}: complete scan: {} files ({} new)", riverName, keyCount, result.size());
       }
 
       return new S3ObjectSummaries(lastScanTimeToReturn, lastKey, scanTruncated, trackS3Deletions, result, keys);

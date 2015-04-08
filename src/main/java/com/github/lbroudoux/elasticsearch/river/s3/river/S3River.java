@@ -164,7 +164,7 @@ public class S3River extends AbstractRiverComponent implements River{
    @Override
    public void start(){
       if (logger.isInfoEnabled()){
-         logger.info("Starting amazon s3 river scanning");
+         logger.info("Starting amazon s3 river scanning of {}", riverName());
       }
       try {
          // Create the index if it doesn't exist
@@ -177,7 +177,7 @@ public class S3River extends AbstractRiverComponent implements River{
          } else if (ExceptionsHelper.unwrapCause(e) instanceof ClusterBlockException){
             // ok, not recovered yet..., lets start indexing and hope we recover by the first bulk.
          } else {
-            logger.warn("failed to create index [{}], disabling river...", e, indexName);
+            logger.warn("failed to create index [{}], disabling river {}...", e, indexName, riverName());
             return;
          }
       }
@@ -188,8 +188,8 @@ public class S3River extends AbstractRiverComponent implements River{
             pushMapping(indexName, typeName, S3RiverUtil.buildS3FileMapping(typeName));
          }
       } catch (Exception e) {
-         logger.warn("Failed to create mapping for [{}/{}], disabling river...",
-               e, indexName, typeName);
+         logger.warn("Failed to create mapping for [{}/{}], disabling river {}...",
+               e, indexName, typeName, riverName());
          return;
       }
 
@@ -233,7 +233,7 @@ public class S3River extends AbstractRiverComponent implements River{
    @Override
    public void close(){
       if (logger.isInfoEnabled()){
-         logger.info("Closing amazon s3 river");
+         logger.info("Closing amazon s3 river {}", riverName());
       }
       closed = true;
       
@@ -343,7 +343,7 @@ public class S3River extends AbstractRiverComponent implements River{
                   boolean initialScanFinished = getBooleanFromRiver(INITIAL_SCAN_FINISHED_FIELD);
                   String initialScanBookmark = getStringFromRiver(INITIAL_SCAN_BOOKMARK_FIELD);
                   
-                  logger.debug("INIT SCAN FINISHED: {} BOOKMARK: {}", initialScanFinished, initialScanBookmark);
+                  logger.debug("{}: INIT SCAN FINISHED: {} BOOKMARK: {}", riverName().name(), initialScanFinished, initialScanBookmark);
 
                   if (initialScanFinished) {
                      initialScanBookmark = null;
@@ -361,22 +361,22 @@ public class S3River extends AbstractRiverComponent implements River{
                      forceInitialScan(summaries.getLastKey());
                      sleepInterval = INITIAL_SCAN_SLEEP_INTERVAL;
                   } else {
-                     logger.debug("Finished with initial scan");
+                     logger.debug("{}: finished with initial scan", riverName().name());
                      finishInitialScan();
                   }
                } else {
                   logger.info("Amazon S3 River is disabled for {}", riverName().name());
                }
             } catch (Exception e){
-               logger.warn("Error while indexing content from {}", feedDefinition.getBucket());
+               logger.warn("{}: error while indexing content from {}", riverName().name(), feedDefinition.getBucket());
                // if (logger.isDebugEnabled()){
-                  logger.warn("Exception for folder {} is {}", feedDefinition.getBucket(), e);
+                  logger.warn("{}: exception for folder {} is {}", riverName().name(), feedDefinition.getBucket(), e);
                   logger.warn("Stack trace: ", e);
                // 
             }
             
             try {
-               logger.info("Amazon S3 river is going to sleep for {} ms", sleepInterval);
+               logger.info("{}: sleeping for {} ms", riverName().name(), sleepInterval);
                Thread.sleep(sleepInterval);
             } catch (InterruptedException ie){
             }
@@ -384,7 +384,7 @@ public class S3River extends AbstractRiverComponent implements River{
       }
 
       public void forceInitialScan(String lastKey) throws Exception {
-         logger.info("Force Initial new bookmark: {}", lastKey);
+         logger.debug("{}: saving new bookmark of initial scan: {}", riverName().name(), lastKey);
          updateRiverString(INITIAL_SCAN_BOOKMARK_FIELD, lastKey);
          updateRiverBoolean(INITIAL_SCAN_FINISHED_FIELD, false);         
       }
@@ -492,10 +492,10 @@ public class S3River extends AbstractRiverComponent implements River{
       /** Scan the Amazon S3 bucket for last changes. */
       private S3ObjectSummaries scan(Long lastScanTime, String initialScanBookmark, boolean trackS3Deletions) throws Exception{
          if (logger.isDebugEnabled()){
-            logger.debug("Starting scanning of bucket {} since {}", feedDefinition.getBucket(), lastScanTime);
+            logger.debug("{}: scanning bucket {} for new items since {}", riverName().name(), feedDefinition.getBucket(), lastScanTime);
          }
 
-         S3ObjectSummaries summaries = s3.getObjectSummaries(lastScanTime, initialScanBookmark, trackS3Deletions);
+         S3ObjectSummaries summaries = s3.getObjectSummaries(riverName().name(), lastScanTime, initialScanBookmark, trackS3Deletions);
                   
          // Browse change and checks if its indexable before starting.
          for (S3ObjectSummary summary : summaries.getPickedSummaries()){
@@ -608,7 +608,7 @@ public class S3River extends AbstractRiverComponent implements River{
                }
             }
          } catch (Exception e) {
-            logger.warn("Can not index " + key + " : " + e.getMessage());
+            logger.warn(riverName().name() + ": can not index " + key + " : " + e.getMessage());
          }
          return null;
       }
@@ -625,7 +625,7 @@ public class S3River extends AbstractRiverComponent implements River{
       /** Update river last changes id value.*/
       private void updateRiverObject(String field, Object value) throws Exception {
          if (logger.isDebugEnabled()){
-            logger.debug("Updating {}: {}", field, value);
+            logger.debug("{} updating {}: {}", riverName().name(), field, value);
          }
 
          // We store the lastupdate date and some stats
