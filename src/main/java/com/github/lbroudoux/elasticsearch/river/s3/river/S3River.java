@@ -548,8 +548,10 @@ public class S3River extends AbstractRiverComponent implements River{
       
       /** Index an Amazon S3 file by retrieving its content and building the suitable Json content. */
       private String indexFile(S3ObjectSummary summary){
+         String key = s3.getDecodedKey(summary);
+
          if (logger.isDebugEnabled()){
-            logger.debug("Trying to index '{}'", s3.getDecodedKey(summary));
+            logger.debug("Trying to index '{}'", key);
          }
          
          try{
@@ -588,25 +590,25 @@ public class S3River extends AbstractRiverComponent implements River{
                   esIndex(indexName, typeName, fileId,
                         jsonBuilder()
                            .startObject()
-                              .field(S3RiverUtil.DOC_FIELD_TITLE, summary.getKey().substring(summary.getKey().lastIndexOf('/') + 1))
+                              .field(S3RiverUtil.DOC_FIELD_TITLE, key.substring(key.lastIndexOf('/') + 1))
                               .field(S3RiverUtil.DOC_FIELD_MODIFIED_DATE, summary.getLastModified().getTime())
                               .field(S3RiverUtil.DOC_FIELD_SOURCE_URL, s3.getDownloadUrl(summary, feedDefinition))
-                              .field(S3RiverUtil.DOC_FIELD_METADATA,   s3.getS3UserMetadata(summary.getKey()))
+                              .field(S3RiverUtil.DOC_FIELD_METADATA,   s3.getS3UserMetadata(key))
                               .startObject("file")
-                                 .field("_name", summary.getKey().substring(summary.getKey().lastIndexOf('/') + 1))
-                                 .field("title", summary.getKey().substring(summary.getKey().lastIndexOf('/') + 1))
+                                 .field("_name", summary.getKey().substring(key.lastIndexOf('/') + 1))
+                                 .field("title", summary.getKey().substring(key.lastIndexOf('/') + 1))
                                  .field("metadata", fileMetadataMap)
                                  .field("file", parsedContent)
                               .endObject()
                            .endObject());
 
-                  logger.debug("S3 River: indexed '{}'", summary.getKey());
+                  logger.debug("S3 River: indexed '{}'", key);
 
                   return fileId;
                }
             }
          } catch (Exception e) {
-            logger.warn("Can not index " + s3.getDecodedKey(summary) + " : " + e.getMessage());
+            logger.warn("Can not index " + key + " : " + e.getMessage());
          }
          return null;
       }

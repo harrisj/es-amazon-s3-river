@@ -166,12 +166,9 @@ public class S3Connector{
    }
 
    public String getDecodedKey(S3ObjectSummary summary) {
-
       //return summary.getKey();  // If you deactivate using withEncodingType above
-      //logger.info("Raw key {}", summary.getKey());
-
       try {
-        return java.net.URLDecoder.decode(summary.getKey().replace("+", " "), "UTF-8");
+        return java.net.URLDecoder.decode(summary.getKey(), "UTF-8");
       } catch (java.io.UnsupportedEncodingException e) {
         e.printStackTrace();
         return null;
