@@ -108,7 +108,6 @@ mvn install:install-file -Dfile=jar/tika-core-1.9-SNAPSHOT.jar -DgroupId=org.apa
 The final command creates in `target/` your output binary
 
 
-
 Get Amazon AWS credentials (accessKey and secretKey)
 ------------------------------------------
 
