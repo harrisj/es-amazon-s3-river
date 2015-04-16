@@ -79,7 +79,6 @@ public class S3Connector{
     * @return Summaries of picked objects.
     */
    public S3ObjectSummaries getObjectSummaries(String riverName, Long lastScanTime, String initialScanBookmark, boolean trackS3Deletions) {
-
       List<String> keys = new ArrayList<String>();
       List<S3ObjectSummary> result = new ArrayList<S3ObjectSummary>();
       boolean initialScan = initialScanBookmark != null;

@@ -384,7 +384,7 @@ public class S3River extends AbstractRiverComponent implements River{
       }
 
       public void forceInitialScan(String lastKey) throws Exception {
-         logger.debug("{}: saving new bookmark of initial scan: {}", riverName().name(), lastKey);
+         logger.info("{}: saving new bookmark of initial scan: {}", riverName().name(), lastKey);
          updateRiverString(INITIAL_SCAN_BOOKMARK_FIELD, lastKey);
          updateRiverBoolean(INITIAL_SCAN_FINISHED_FIELD, false);         
       }
