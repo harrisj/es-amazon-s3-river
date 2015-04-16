@@ -164,7 +164,7 @@ public class S3River extends AbstractRiverComponent implements River{
    @Override
    public void start(){
       if (logger.isInfoEnabled()){
-         logger.info("Starting amazon s3 river scanning of {}", riverName());
+         logger.info("Starting amazon s3 river scanning of {}", riverName().name());
       }
       try {
          // Create the index if it doesn't exist
@@ -202,7 +202,7 @@ public class S3River extends AbstractRiverComponent implements River{
          } else if (ExceptionsHelper.unwrapCause(e) instanceof ClusterBlockException){
             // ok, not recovered yet..., lets start indexing and hope we recover by the first bulk.
          } else {
-            logger.warn("failed to create index [{}], disabling river {}...", e, indexName, riverName());
+            logger.warn("failed to create index [{}], disabling river {}...", e, indexName, riverName().name());
             return;
          }
       }
@@ -214,7 +214,7 @@ public class S3River extends AbstractRiverComponent implements River{
          }
       } catch (Exception e) {
          logger.warn("Failed to create mapping for [{}/{}], disabling river {}...",
-               e, indexName, typeName, riverName());
+               e, indexName, typeName, riverName().name());
          return;
       }
 
@@ -258,7 +258,7 @@ public class S3River extends AbstractRiverComponent implements River{
    @Override
    public void close(){
       if (logger.isInfoEnabled()){
-         logger.info("Closing amazon s3 river {}", riverName());
+         logger.info("Closing amazon s3 river {}", riverName().name());
       }
       closed = true;
       
@@ -409,7 +409,7 @@ public class S3River extends AbstractRiverComponent implements River{
       }
 
       public void forceInitialScan(String lastKey) throws Exception {
-         logger.debug("{}: saving new bookmark of initial scan: {}", riverName().name(), lastKey);
+         logger.info("{}: saving new bookmark of initial scan: {}", riverName().name(), lastKey);
          updateRiverString(INITIAL_SCAN_BOOKMARK_FIELD, lastKey);
          updateRiverBoolean(INITIAL_SCAN_FINISHED_FIELD, false);         
       }
