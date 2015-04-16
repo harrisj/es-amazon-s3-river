@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentBuilder;
