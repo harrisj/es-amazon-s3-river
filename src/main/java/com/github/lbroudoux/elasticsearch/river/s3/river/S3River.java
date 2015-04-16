@@ -169,7 +169,32 @@ public class S3River extends AbstractRiverComponent implements River{
       try {
          // Create the index if it doesn't exist
          if (!client.admin().indices().prepareExists(indexName).execute().actionGet().isExists()) {
-            client.admin().indices().prepareCreate(indexName).execute().actionGet();
+
+            // index settings go here
+            // these analyzers won't be used in every index, but they do *exist* in every index.
+            // they're just part of our toolbox to specify how to analyze fields (by name, unfortunately)
+            // in S3RiverUtil.java
+            client.admin().indices().prepareCreate(indexName).setSettings(
+               ImmutableSettings.settingsBuilder().loadFromSource(jsonBuilder()
+                .startObject()
+                    .startObject("analysis")
+                        .startObject("analyzer")
+                            .startObject("email_analyzer")
+                                .field("type", "custom")
+                                .field("tokenizer", "email_tokenizer")
+                                .field("filter", new String[]{"lowercase"})
+                            .endObject()
+                        .endObject()
+                        .startObject("tokenizer")
+                            .startObject("email_tokenizer")
+                                .field("type", "pattern")
+                                .field("pattern", "([a-zA-Z0-9_\\.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-\\.]+)")
+                                .field("group", "0")
+                            .endObject()
+                        .endObject()                        
+                    .endObject()
+                .endObject().string())
+            ).execute().actionGet();
          }
       } catch (Exception e) {
          if (ExceptionsHelper.unwrapCause(e) instanceof IndexAlreadyExistsException){
