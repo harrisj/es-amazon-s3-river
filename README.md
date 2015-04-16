@@ -95,6 +95,18 @@ Downloading ......DONE
 Installed amazon-s3-river
 ```
 
+Building
+--------
+
+Because Jeb Bush's email server exports RFC822 non-compliant emails, we needed to modify Tika to detect them properly, sadly. To build this project, you need to run the following three commands:
+`
+mvn install:install-file -Dfile=jar/tika-core-1.9-SNAPSHOT.jar -DgroupId=org.apache.tika -DartifactId=tika-core -Dversion=1.9 -Dpackaging=jar`
+
+`mvn install:install-file -Dfile=jar/tika-parsers-1.9-SNAPSHOT.jar -DgroupId=org.apache.tika -DartifactId=tika-parsers -Dversion=1.9 -Dpackaging=jar`
+
+`mvn install`
+The final command creates in `target/` your output binary
+
 
 Get Amazon AWS credentials (accessKey and secretKey)
 ------------------------------------------
