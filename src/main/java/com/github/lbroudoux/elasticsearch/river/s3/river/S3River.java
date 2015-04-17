@@ -263,6 +263,8 @@ public class S3River extends AbstractRiverComponent implements River{
       }
       closed = true;
       
+      bulkProcessor.close();
+
       // We have to close the Thread.
       if (feedThread != null){
          feedThread.interrupt();
@@ -379,7 +381,6 @@ public class S3River extends AbstractRiverComponent implements River{
 
                   Long lastScanTime = getLongFromRiver(LAST_SCAN_TIME_FIELD);
                   S3ObjectSummaries summaries = scan(lastScanTime, initialScanBookmark, trackS3Deletions());
-
                   updateRiverLong(LAST_SCAN_TIME_FIELD, summaries.getLastScanTime());
 
                   if (summaries.getScanTruncated()) {
@@ -662,7 +663,8 @@ public class S3River extends AbstractRiverComponent implements River{
                   .field(field, value)
                .endObject()
             .endObject();
-         esIndex("_river", riverName.name(), field, xb);         
+         esIndex("_river", riverName.name(), field, xb);
+         bulkProcessor.flush();  // force it to be changed
       }
 
       // just in case I need to modify the values passed into updateRiverObject
