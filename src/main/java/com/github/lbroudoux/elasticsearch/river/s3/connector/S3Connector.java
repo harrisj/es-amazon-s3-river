@@ -108,7 +108,7 @@ public class S3Connector{
       while (!listing.getObjectSummaries().isEmpty() || listing.isTruncated()){
          List<S3ObjectSummary> summaries = listing.getObjectSummaries();
          // if (logger.isDebugEnabled()) {
-         //    logger.debug("Found {} items in this listObjects page", summaries.size());
+            logger.debug("Found {} items in this listObjects page (truncated? {})", summaries.size(), listing.isTruncated());
          // }
 
          for (S3ObjectSummary summary : summaries) {
