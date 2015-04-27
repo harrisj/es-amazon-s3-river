@@ -78,10 +78,9 @@ public class S3Connector{
     * @param lastScanTime Last modification date filter
     * @return Summaries of picked objects.
     */
-   public S3ObjectSummaries getObjectSummaries(String riverName, Long lastScanTime, String initialScanBookmark, boolean trackS3Deletions) {
+   public S3ObjectSummaries getObjectSummaries(String riverName, Long lastScanTime, boolean initialScan, String initialScanBookmark, boolean trackS3Deletions) {
       List<String> keys = new ArrayList<String>();
       List<S3ObjectSummary> result = new ArrayList<S3ObjectSummary>();
-      boolean initialScan = initialScanBookmark != null;
 
       if (initialScan) {
         trackS3Deletions = false;
@@ -130,10 +129,12 @@ public class S3Connector{
                  }
 
               } else if (!scanTruncated && result.size() == MAX_NEW_RESULTS_TO_INDEX_ON_RUN) {
-                logger.info("{}: only indexing up to {} new objects on this indexing run", riverName, MAX_NEW_RESULTS_TO_INDEX_ON_RUN);
+                if (initialScan) {
+                  logger.info("{}: only indexing up to {} new objects on this indexing run", riverName, MAX_NEW_RESULTS_TO_INDEX_ON_RUN);
                 // initialScan = true;
-                scanTruncated = true;
-
+                  scanTruncated = true;
+                }
+                
                 if (!trackS3Deletions) {
                   // No need to keep iterating through all keys if we aren't doing deleteOnS3 
                   break;

@@ -36,9 +36,11 @@ public class S3RiverFeedDefinition{
    private String secretKey;
    private boolean jsonSupport;
    private boolean trackS3Deletions;
+   private boolean truncateInitial;
    
    public S3RiverFeedDefinition(String feedname, String bucket, String pathPrefix, String downloadHost, int updateRate, 
-         List<String> includes, List<String> excludes, String accessKey, String secretKey, boolean jsonSupport, boolean trackS3Deletions){
+         List<String> includes, List<String> excludes, String accessKey, String secretKey, boolean jsonSupport, boolean trackS3Deletions,
+         boolean truncateInitial){
       this.feedname = feedname;
       this.bucket = bucket;
       this.pathPrefix = pathPrefix;
@@ -50,6 +52,7 @@ public class S3RiverFeedDefinition{
       this.secretKey = secretKey;
       this.jsonSupport = jsonSupport;
       this.trackS3Deletions = trackS3Deletions;
+      this.truncateInitial = truncateInitial;
    }
    
    public String getFeedname() {
@@ -117,4 +120,5 @@ public class S3RiverFeedDefinition{
 
    public boolean isJsonSupport(){ return jsonSupport; }
    public boolean trackS3Deletions(){ return trackS3Deletions; }
+   public boolean truncateInitialScan() { return truncateInitial; }
 }

@@ -106,6 +106,7 @@ public class S3River extends AbstractRiverComponent implements River{
          int updateRate = XContentMapValues.nodeIntegerValue(feed.get("update_rate"), 15 * 60 * 1000);
          boolean jsonSupport = XContentMapValues.nodeBooleanValue(feed.get("json_support"), false);
          boolean trackS3Deletions = XContentMapValues.nodeBooleanValue(feed.get("deleteS3"), true);
+         boolean truncateInitial = XContentMapValues.nodeBooleanValue(feed.get("truncate_initial"), false);
          
          String[] includes = S3RiverUtil.buildArrayFromSettings(settings.settings(), "amazon-s3.includes");
          String[] excludes = S3RiverUtil.buildArrayFromSettings(settings.settings(), "amazon-s3.excludes");
@@ -115,7 +116,7 @@ public class S3River extends AbstractRiverComponent implements River{
          String secretKey = XContentMapValues.nodeStringValue(feed.get("secretKey"), null);
          
          feedDefinition = new S3RiverFeedDefinition(feedname, bucket, pathPrefix, downloadHost,
-               updateRate, Arrays.asList(includes), Arrays.asList(excludes), accessKey, secretKey, jsonSupport, trackS3Deletions);
+               updateRate, Arrays.asList(includes), Arrays.asList(excludes), accessKey, secretKey, jsonSupport, trackS3Deletions, truncateInitial);
       } else {
          logger.error("You didn't define the amazon-s3 settings. Exiting... See https://github.com/lbroudoux/es-amazon-s3-river");
          indexName = null;
@@ -368,7 +369,8 @@ public class S3River extends AbstractRiverComponent implements River{
             try{
                if (isStarted()) {
                   // Scan folder starting from last changes id, then record the new one.
-                  boolean initialScanFinished = getBooleanFromRiver(INITIAL_SCAN_FINISHED_FIELD);
+                  // SO UGLY. I AM SORRY.
+                  boolean initialScanFinished = !feedDefinition.truncateInitialScan() || getBooleanFromRiver(INITIAL_SCAN_FINISHED_FIELD);
                   String initialScanBookmark = getStringFromRiver(INITIAL_SCAN_BOOKMARK_FIELD);
                   
                   logger.debug("{}: INIT SCAN FINISHED: {} BOOKMARK: {}", riverName().name(), initialScanFinished, initialScanBookmark);
@@ -380,7 +382,7 @@ public class S3River extends AbstractRiverComponent implements River{
                   }
 
                   Long lastScanTime = getLongFromRiver(LAST_SCAN_TIME_FIELD);
-                  S3ObjectSummaries summaries = scan(lastScanTime, initialScanBookmark, trackS3Deletions());
+                  S3ObjectSummaries summaries = scan(lastScanTime, !initialScanFinished, initialScanBookmark, trackS3Deletions());
                   updateRiverLong(LAST_SCAN_TIME_FIELD, summaries.getLastScanTime());
 
                   if (summaries.getScanTruncated()) {
@@ -517,12 +519,12 @@ public class S3River extends AbstractRiverComponent implements River{
       }
 
       /** Scan the Amazon S3 bucket for last changes. */
-      private S3ObjectSummaries scan(Long lastScanTime, String initialScanBookmark, boolean trackS3Deletions) throws Exception{
+      private S3ObjectSummaries scan(Long lastScanTime, boolean initialScan, String initialScanBookmark, boolean trackS3Deletions) throws Exception{
          if (logger.isDebugEnabled()){
             logger.debug("{}: scanning bucket {} for new items since {}", riverName().name(), feedDefinition.getBucket(), lastScanTime);
          }
 
-         S3ObjectSummaries summaries = s3.getObjectSummaries(riverName().name(), lastScanTime, initialScanBookmark, trackS3Deletions);
+         S3ObjectSummaries summaries = s3.getObjectSummaries(riverName().name(), lastScanTime, initialScan, initialScanBookmark, trackS3Deletions);
                   
          // Browse change and checks if its indexable before starting.
          for (S3ObjectSummary summary : summaries.getPickedSummaries()){
